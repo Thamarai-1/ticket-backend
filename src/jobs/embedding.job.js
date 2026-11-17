@@ -3,7 +3,7 @@
  * Background worker for generating and indexing ticket embeddings into Qdrant Cloud.
  */
 
-const { Ticket } = require('../repositories/ticket.repository');
+const { ticketRepository } = require('../repositories/ticket.repository');
 const embeddingService = require('../services/retrieval/embedding.service');
 const qdrantService = require('../services/retrieval/qdrant.service');
 const logger = require('../config/logger');
@@ -14,7 +14,7 @@ class EmbeddingJob {
 
     try {
       // Find tickets that need embeddings
-      const tickets = await Ticket.find({}).limit(batchSize).lean();
+      const { tickets } = await ticketRepository.findAll({}, { limit: batchSize });
       let processed = 0;
       const qdrantBatch = [];
 

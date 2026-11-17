@@ -10,5 +10,6 @@ const searchController = require('../../controllers/search.controller');
 router.get('/', searchController.search);
 router.post('/hybrid', searchController.hybridSearch);
 router.post('/semantic', searchController.semanticSearch);
+router.post('/chunks/inspect', searchController.inspectChunks);
 
 module.exports = router;

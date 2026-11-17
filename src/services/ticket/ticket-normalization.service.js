@@ -8,11 +8,11 @@ class TicketNormalizationService {
     const output = { ...input };
 
     if (typeof output.title === 'string') {
-      output.title = output.title.trim().replace(/\s+/g, ' ');
+      output.title = this.maskSensitiveInfo(output.title.trim().replace(/\s+/g, ' '));
     }
 
     if (typeof output.description === 'string') {
-      output.description = output.description.trim();
+      output.description = this.maskSensitiveInfo(output.description.trim());
     }
 
     if (typeof output.affected_service === 'string') {
@@ -39,7 +39,9 @@ class TicketNormalizationService {
       output.environment = output.environment.trim();
     }
 
-    if (!output.raw_text) {
+    if (typeof output.raw_text === 'string') {
+      output.raw_text = this.maskSensitiveInfo(output.raw_text.trim());
+    } else {
       output.raw_text = `Title: ${output.title || ''}\nDescription: ${output.description || ''}`;
     }
 
@@ -72,11 +74,15 @@ class TicketNormalizationService {
 
   maskSensitiveInfo(text) {
     if (!text || typeof text !== 'string') return text;
-    // Mask potential passwords, credit card numbers, or authorization tokens
     return text
-      .replace(/(password\s*[:=]\s*)(\S+)/gi, '$1********')
-      .replace(/(token\s*[:=]\s*)(\S+)/gi, '$1********')
-      .replace(/\b(?:\d[ -]*?){13,16}\b/g, '****-****-****-****');
+      // Passwords and explicit credentials
+      .replace(/(password|passwd|pwd|pass)\s*[:=]\s*([^\s,;]+)/gi, '$1: [REDACTED_PASSWORD]')
+      // Authorization tokens, secrets, API keys
+      .replace(/(bearer|token|api_key|apikey|secret|auth)\s*[:=]\s*([^\s,;]+)/gi, '$1: [REDACTED_SECRET]')
+      // Corporate and personal email addresses
+      .replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '[REDACTED_EMAIL]')
+      // Credit card numbers
+      .replace(/\b(?:\d[ -]*?){13,16}\b/g, '[REDACTED_CREDIT_CARD]');
   }
 }
 

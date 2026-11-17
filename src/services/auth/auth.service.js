@@ -1,138 +1,178 @@
 /**
  * auth.service.js
  * Authentication business logic: registration, credential validation, session handling.
+ * Utilizes memory-hard scrypt hashing with cryptographic per-user salts and timing-safe comparison.
  */
 
 const crypto = require('crypto');
 const tokenService = require('./token.service');
-const { UnauthorizedError, ValidationError, ConflictError } = require('../../utils/errors');
+const { userRepository } = require('../../repositories/user.repository');
+const { UnauthorizedError, ValidationError, ConflictError, NotFoundError } = require('../../utils/errors');
 const logger = require('../../config/logger');
 
-// In-memory user store for demo/development with seeded default admin/analyst
-const inMemoryUsers = new Map([
-  [
-    'analyst@corp.com',
-    {
-      userId: 'usr-analyst-01',
-      email: 'analyst@corp.com',
-      name: 'Senior Triage Analyst',
-      role: 'analyst',
-      accessLevel: 'internal',
-      passwordHash: hashPassword('AnalystPass123!')
-    }
-  ],
-  [
-    'admin@corp.com',
-    {
-      userId: 'usr-admin-01',
-      email: 'admin@corp.com',
-      name: 'System Administrator',
-      role: 'admin',
-      accessLevel: 'restricted',
-      passwordHash: hashPassword('AdminPass123!')
-    }
-  ]
-]);
+// Generate cryptographically secure random salt
+function generateSalt() {
+  return crypto.randomBytes(16).toString('hex');
+}
 
-function hashPassword(password) {
-  return crypto.createHash('sha256').update(password).digest('hex');
+// Memory-hard password hashing using scrypt
+function hashPassword(password, salt) {
+  const saltBuf = Buffer.isBuffer(salt) ? salt : Buffer.from(salt, 'hex');
+  const derivedKey = crypto.scryptSync(password, saltBuf, 64);
+  return derivedKey.toString('hex');
+}
+
+// Timing-safe verification to prevent side-channel timing attacks
+function verifyPassword(password, salt, storedHash) {
+  try {
+    const computedHash = hashPassword(password, salt);
+    const hashBuf = Buffer.from(computedHash, 'hex');
+    const storedBuf = Buffer.from(storedHash, 'hex');
+
+    if (hashBuf.length !== storedBuf.length) {
+      return false;
+    }
+    return crypto.timingSafeEqual(hashBuf, storedBuf);
+  } catch {
+    return false;
+  }
 }
 
 class AuthService {
+  /**
+   * Authenticate a user with email and password
+   */
   async login(email, password) {
     if (!email || !password) {
       throw new ValidationError('Email and password are required');
     }
 
     const cleanEmail = email.trim().toLowerCase();
-    const user = inMemoryUsers.get(cleanEmail);
+    const user = await userRepository.findByEmail(cleanEmail);
 
-    if (!user || user.passwordHash !== hashPassword(password)) {
+    if (!user) {
+      // Intentionally generic error message to prevent account enumeration
+      throw new UnauthorizedError('Invalid email or password');
+    }
+
+    const isMatch = verifyPassword(password, user.salt, user.password_hash);
+    if (!isMatch) {
+      logger.warn(`Failed login attempt for user: ${cleanEmail}`);
       throw new UnauthorizedError('Invalid email or password');
     }
 
     const token = tokenService.generateToken({
-      userId: user.userId,
+      userId: user.user_id,
       email: user.email,
       name: user.name,
       role: user.role,
-      accessLevel: user.accessLevel
+      accessLevel: user.access_level
     });
 
-    logger.info(`User ${user.email} logged in successfully.`);
+    logger.info(`User ${user.email} authenticated successfully.`);
 
     return {
       token,
+      token_type: 'Bearer',
       user: {
-        userId: user.userId,
+        userId: user.user_id,
         email: user.email,
         name: user.name,
         role: user.role,
-        accessLevel: user.accessLevel
+        accessLevel: user.access_level
       }
     };
   }
 
+  /**
+   * Register a new user with password and email
+   */
   async register({ email, name, password, role = 'analyst', accessLevel = 'internal' }) {
     if (!email || !password || !name) {
       throw new ValidationError('Email, name, and password are required');
     }
 
     const cleanEmail = email.trim().toLowerCase();
-    if (inMemoryUsers.has(cleanEmail)) {
+
+    // Check if user already exists
+    const existing = await userRepository.findByEmail(cleanEmail);
+    if (existing) {
       throw new ConflictError(`User with email '${cleanEmail}' already exists`);
     }
 
-    const newUser = {
-      userId: `usr-${Date.now()}`,
+    // Minimum 8 characters password policy
+    if (typeof password !== 'string' || password.length < 8) {
+      throw new ValidationError('Password must be at least 8 characters long');
+    }
+
+    const salt = generateSalt();
+    const passwordHash = hashPassword(password, salt);
+    const userId = `usr-${crypto.randomBytes(6).toString('hex')}`;
+
+    const newUser = await userRepository.createUser({
+      user_id: userId,
       email: cleanEmail,
       name: name.trim(),
+      password_hash: passwordHash,
+      salt,
       role,
-      accessLevel,
-      passwordHash: hashPassword(password)
-    };
+      access_level: accessLevel
+    });
 
-    inMemoryUsers.set(cleanEmail, newUser);
     logger.info(`New user registered: ${cleanEmail}`);
 
     const token = tokenService.generateToken({
-      userId: newUser.userId,
+      userId: newUser.user_id,
       email: newUser.email,
       name: newUser.name,
       role: newUser.role,
-      accessLevel: newUser.accessLevel
+      accessLevel: newUser.access_level
     });
 
     return {
       token,
+      token_type: 'Bearer',
       user: {
-        userId: newUser.userId,
+        userId: newUser.user_id,
         email: newUser.email,
         name: newUser.name,
         role: newUser.role,
-        accessLevel: newUser.accessLevel
+        accessLevel: newUser.access_level
       }
     };
   }
 
+  /**
+   * Fetch current authenticated user profile
+   */
   async getCurrentUser(userId) {
-    for (const u of inMemoryUsers.values()) {
-      if (u.userId === userId) {
-        return {
-          userId: u.userId,
-          email: u.email,
-          name: u.name,
-          role: u.role,
-          accessLevel: u.accessLevel
-        };
-      }
+    if (!userId) {
+      throw new UnauthorizedError('User ID not provided');
     }
+
+    const user = await userRepository.findById(userId);
+    if (!user) {
+      throw new NotFoundError(`User with ID ${userId} not found`);
+    }
+
     return {
-      userId: userId || 'anonymous-analyst',
-      email: 'analyst@corp.com',
-      name: 'Default Analyst',
-      role: 'analyst',
-      accessLevel: 'internal'
+      userId: user.user_id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      accessLevel: user.access_level,
+      createdAt: user.created_at
+    };
+  }
+
+  /**
+   * Log out user session
+   */
+  async logout(userId) {
+    logger.info(`User logged out: ${userId}`);
+    return {
+      logged_out: true,
+      timestamp: new Date().toISOString()
     };
   }
 }

@@ -45,7 +45,7 @@ const getTickets = async (req, res, next) => {
 const getTicketById = async (req, res, next) => {
   try {
     const { ticketId } = req.params;
-    const ticket = await ticketService.getTicketById(ticketId);
+    const ticket = await ticketService.getTicketById(ticketId, req.user);
     return successResponse(res, ticket);
   } catch (error) {
     next(error);
@@ -108,9 +108,26 @@ const getTicketStats = async (req, res, next) => {
   }
 };
 
+const getTicketChunks = async (req, res, next) => {
+  try {
+    const { ticketId } = req.params;
+    const ticket = await ticketService.getTicketById(ticketId, req.user);
+    const chunkingService = require('../services/retrieval/chunking.service');
+    const chunks = chunkingService.chunkTicket(ticket);
+    return successResponse(res, {
+      ticket_id: ticket.ticket_id,
+      chunks_count: chunks.length,
+      chunks
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getTickets,
   getTicketById,
+  getTicketChunks,
   createTicket,
   updateTicket,
   searchTickets,

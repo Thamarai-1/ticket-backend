@@ -3,8 +3,8 @@
  * Controller for Capturing and Inspecting Human Analyst Feedback (FR-06).
  */
 
-const { AnalystFeedback, FEEDBACK_STATUSES, TARGET_TYPES } = require('../repositories/feedback.repository');
-const { Analysis } = require('../repositories/resolution.repository');
+const { feedbackRepository, FEEDBACK_STATUSES, TARGET_TYPES } = require('../repositories/feedback.repository');
+const { resolutionRepository } = require('../repositories/resolution.repository');
 const auditService = require('../services/audit/audit.service');
 
 /**
@@ -19,9 +19,7 @@ const submitFeedback = async (req, res, next) => {
     const correlation_id = req.headers['x-correlation-id'] || `CORR-FB-${Date.now()}`;
 
     // 1. Verify analysis exists
-    const analysis = await Analysis.findOne({
-      analysis_id: { $regex: new RegExp(`^${analysisId.trim()}$`, 'i') }
-    }).lean();
+    const analysis = await resolutionRepository.findAnalysisById(analysisId);
 
     if (!analysis) {
       return res.status(404).json({
@@ -78,7 +76,7 @@ const submitFeedback = async (req, res, next) => {
 
     const feedback_id = `FB-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
 
-    const feedbackDoc = new AnalystFeedback({
+    const feedbackDoc = await feedbackRepository.create({
       feedback_id,
       analysis_id: analysis.analysis_id,
       target_type,
@@ -93,8 +91,6 @@ const submitFeedback = async (req, res, next) => {
       created_at: new Date(),
       updated_at: new Date()
     });
-
-    await feedbackDoc.save();
 
     // 5. Immutable Audit Event
     await auditService.logEvent({
@@ -112,6 +108,8 @@ const submitFeedback = async (req, res, next) => {
         target_type,
         target_id: feedbackDoc.target_id,
         feedback_status,
+        reviewer_decision: feedback_status,
+        comment: feedbackDoc.comment,
         comment_length: feedbackDoc.comment ? feedbackDoc.comment.length : 0
       }
     });

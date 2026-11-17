@@ -3,8 +3,8 @@
  * Master Orchestrator for Unified IT Ticket Analysis (Phases 2, 3, 4, 5, 6).
  */
 
-const { Analysis } = require('../repositories/resolution.repository');
-const { AnalystFeedback } = require('../repositories/feedback.repository');
+const { resolutionRepository } = require('../repositories/resolution.repository');
+const { feedbackRepository } = require('../repositories/feedback.repository');
 const mlService = require('../services/ml.service');
 const auditService = require('../services/audit/audit.service');
 const { parsePagination, formatPagination } = require('../utils/pagination');
@@ -209,8 +209,8 @@ const analyzeTicket = async (req, res, next) => {
       totalDuration - (latencyMetrics.classification + latencyMetrics.recommendation)
     );
 
-    // 5. Persist unified analysis into database
-    const analysisDoc = new Analysis({
+    // 5. Persist unified analysis into database/repository
+    const analysisDoc = await resolutionRepository.saveAnalysis({
       analysis_id,
       correlation_id,
       ticket_id: assignedTicketId,
@@ -237,8 +237,6 @@ const analyzeTicket = async (req, res, next) => {
       },
       execution_latency_ms: latencyMetrics
     });
-
-    await analysisDoc.save();
 
     // 6. Record audit event for analysis completion
     await auditService.logEvent({

@@ -6,6 +6,7 @@
 const ticketService = require('../services/ticket/ticket.service');
 const hybridSearchService = require('../services/retrieval/hybrid-search.service');
 const vectorSearchService = require('../services/retrieval/vector-search.service');
+const chunkingService = require('../services/retrieval/chunking.service');
 const { successResponse, paginatedResponse } = require('../utils/response');
 
 const search = async (req, res, next) => {
@@ -46,8 +47,28 @@ const semanticSearch = async (req, res, next) => {
   }
 };
 
+const inspectChunks = async (req, res, next) => {
+  try {
+    const { ticket_id = 'INSPECT-01', title = '', description = '', resolution_text = '' } = req.body;
+    const chunks = chunkingService.chunkTicket({
+      ticket_id,
+      title,
+      description,
+      resolution_text
+    });
+    return successResponse(res, {
+      ticket_id,
+      chunks_count: chunks.length,
+      chunks
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   search,
   hybridSearch,
-  semanticSearch
+  semanticSearch,
+  inspectChunks
 };
