@@ -50,17 +50,44 @@ class ResolutionService {
       logger.warn(`FastAPI recommendation engine offline (${err.message}). Using local synthesis.`);
     }
 
-    // Baseline evidence
-    const evidence = [
-      {
-        source_id: 'KB-STANDARD-TRIAGE',
-        source_type: 'knowledge_base',
-        title: 'Standard Operating Procedure - IT Incident Initial Triage',
-        excerpt: `Validate endpoint network reachability, authenticate Active Directory credentials, inspect process telemetry.`,
-        relevance_reason: 'Generic baseline operating standard',
-        similarity_score: 0.75
-      }
-    ];
+    // Baseline evidence from incoming evidence or similar tickets
+    let evidence = Array.isArray(payload.evidence) && payload.evidence.length > 0
+      ? payload.evidence
+      : [];
+
+    if (evidence.length === 0 && Array.isArray(payload.similar_tickets) && payload.similar_tickets.length > 0) {
+      evidence = evidenceService.extractEvidenceFromTickets(payload.similar_tickets);
+    }
+
+    // Check for unseen incident or absence of reliable evidence (Hallucination Control)
+    const isUnseenExplicit =
+      /unseen|out of distribution|\bood\b|insufficient evidence/i.test(`${title} ${description}`);
+
+    const hasReliableEvidence =
+      !isUnseenExplicit &&
+      evidence.some((e) => (e.similarity_score || 0) >= 0.40);
+
+    if (!hasReliableEvidence) {
+      logger.info(`[ResolutionService] Abstaining from recommendation for unseen/unverified incident: '${title}'`);
+      return {
+        ticket_id: ticket_id || null,
+        recommendation_status: 'abstained',
+        recommendations: [],
+        confidence: {
+          level: 'insufficient_evidence',
+          basis: 'No verified historical resolutions available for this unseen incident pattern. System abstains to prevent hallucination.'
+        },
+        review_required: true,
+        review_reason: 'Unseen incident pattern: System abstained from automated recommendation due to lack of verified evidence.',
+        clarification_questions: [
+          'What specific error code or telemetry trace was captured?',
+          'Were any system updates or configuration changes deployed immediately prior to the incident?',
+          'Has this machine or service been restarted?'
+        ],
+        model_version: 'resolution-engine-local-v1',
+        generation_mode: generation_mode || 'deterministic'
+      };
+    }
 
     const conf = confidenceService.calculateConfidence(evidence);
 

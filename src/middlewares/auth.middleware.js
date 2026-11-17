@@ -1,65 +1,67 @@
 /**
  * auth.middleware.js
- * Authentication and authorization middleware.
+ * Mandatory authentication and authorization middleware.
+ * Verifies Bearer JWT token from Authorization header and protects downstream routes.
  */
 
-const { UnauthorizedError, ForbiddenError } = require('../utils/errors');
+const { ForbiddenError } = require('../utils/errors');
 const tokenService = require('../services/auth/token.service');
 
+/**
+ * Mandatory authentication middleware.
+ * Requires a valid Bearer token in the Authorization header.
+ * Rejects unauthenticated requests with HTTP 401 Unauthorized.
+ */
 const authenticate = (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
     let token = null;
 
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      token = authHeader.substring(7).trim();
+    if (authHeader && typeof authHeader === 'string') {
+      const parts = authHeader.trim().split(' ');
+      if (parts.length === 2 && /^Bearer$/i.test(parts[0])) {
+        token = parts[1];
+      }
     }
 
-    if (token) {
-      const decoded = tokenService.verifyToken(token);
-      req.user = decoded;
-      req.userId = decoded.userId || decoded.sub;
-      req.userRole = decoded.role || 'user';
-      req.userAccessLevel = decoded.accessLevel || 'internal';
-      return next();
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required. Please provide a valid Bearer token in the Authorization header.',
+        timestamp: new Date().toISOString()
+      });
     }
 
-    // Support header-based user context (e.g. from gateway or internal testing)
-    const headerUserId = req.headers['x-user-id'];
-    const headerAccessLevel = req.headers['x-user-access-level'] || 'internal';
+    const decoded = tokenService.verifyToken(token);
+    req.user = decoded;
+    req.userId = decoded.userId || decoded.sub;
+    req.userRole = decoded.role || 'user';
+    req.userAccessLevel = decoded.accessLevel || 'internal';
+    req.userEmail = decoded.email || null;
 
-    if (headerUserId) {
-      req.user = {
-        userId: headerUserId,
-        role: req.headers['x-user-role'] || 'analyst',
-        accessLevel: headerAccessLevel
-      };
-      req.userId = headerUserId;
-      req.userRole = req.user.role;
-      req.userAccessLevel = headerAccessLevel;
-      return next();
-    }
-
-    // Anonymous or guest default in non-strict modes
-    req.user = {
-      userId: 'anonymous-analyst',
-      role: 'analyst',
-      accessLevel: headerAccessLevel
-    };
-    req.userId = 'anonymous-analyst';
-    req.userRole = 'analyst';
-    req.userAccessLevel = headerAccessLevel;
-
-    next();
+    return next();
   } catch (err) {
-    next(new UnauthorizedError(err.message || 'Authentication token invalid or expired'));
+    return res.status(401).json({
+      success: false,
+      error: 'Invalid or expired authentication token',
+      details: err.message,
+      timestamp: new Date().toISOString()
+    });
   }
 };
 
+/**
+ * Role-Based Access Control (RBAC) middleware.
+ * Verifies that the authenticated user possesses one of the allowed roles.
+ */
 const requireRole = (...allowedRoles) => {
   return (req, res, next) => {
     if (!req.user || !allowedRoles.includes(req.user.role)) {
-      return next(new ForbiddenError(`Access restricted to roles: ${allowedRoles.join(', ')}`));
+      return res.status(403).json({
+        success: false,
+        error: `Forbidden: Access restricted to roles: ${allowedRoles.join(', ')}`,
+        timestamp: new Date().toISOString()
+      });
     }
     next();
   };

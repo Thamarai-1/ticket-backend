@@ -8,6 +8,9 @@ const mongoose = require('mongoose');
 const env = require('./env');
 const logger = require('./logger');
 
+// Prevent Mongoose from hanging on operations when disconnected
+mongoose.set('bufferCommands', false);
+
 let prismaClient = null;
 
 const getPrisma = () => {

@@ -3,13 +3,18 @@
  * Prompt engineering templates for LLM integrations (Gemini, OpenAI).
  */
 
+const ticketNormalizationService = require('../ticket/ticket-normalization.service');
+
 class PromptService {
   buildClassificationPrompt(ticket) {
+    const cleanTitle = ticketNormalizationService.maskSensitiveInfo(ticket.title || '');
+    const cleanDescription = ticketNormalizationService.maskSensitiveInfo(ticket.description || '');
+
     return `You are an expert IT Service Management triage specialist.
 Analyze the following IT support ticket and classify it accurately.
 
-Ticket Title: ${ticket.title}
-Ticket Description: ${ticket.description}
+Ticket Title: ${cleanTitle}
+Ticket Description: ${cleanDescription}
 Affected Service: ${ticket.affected_service || 'Not specified'}
 
 Respond strictly with valid JSON:
@@ -24,19 +29,22 @@ Respond strictly with valid JSON:
   }
 
   buildResolutionPrompt(ticket, evidenceTickets = []) {
+    const cleanTitle = ticketNormalizationService.maskSensitiveInfo(ticket.title || '');
+    const cleanDescription = ticketNormalizationService.maskSensitiveInfo(ticket.description || '');
+
     const evidenceText = evidenceTickets
       .map(
         (t, i) => `[Source ${i + 1}] ID: ${t.ticket_id}
-Title: ${t.title}
-Resolution: ${t.resolution_text || 'No text'}`
+Title: ${ticketNormalizationService.maskSensitiveInfo(t.title || '')}
+Resolution: ${ticketNormalizationService.maskSensitiveInfo(t.resolution_text || 'No text')}`
       )
       .join('\n\n');
 
     return `You are a Senior IT Systems Engineer providing an actionable, safe, step-by-step resolution procedure for an IT incident.
 
 Incoming Incident:
-Title: ${ticket.title}
-Description: ${ticket.description}
+Title: ${cleanTitle}
+Description: ${cleanDescription}
 Service: ${ticket.affected_service || 'Unknown'}
 Environment: ${ticket.environment || 'Production'}
 

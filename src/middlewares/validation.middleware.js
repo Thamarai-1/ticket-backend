@@ -6,6 +6,7 @@
 const { validateCreateTicket: validateTicketBody } = require('../validators/ticket.validator');
 const { validateAnalysisRequest: validateAnalysisBody } = require('../validators/analysis.validator');
 const { validateFeedbackRequest: validateFeedbackBody } = require('../validators/feedback.validator');
+const { validateRegister: validateRegisterBody, validateLogin: validateLoginBody } = require('../validators/auth.validator');
 
 const validate = (validatorFn) => {
   return (req, res, next) => {
@@ -25,10 +26,14 @@ const validate = (validatorFn) => {
 const validateCreateTicket = validate(validateTicketBody);
 const validateAnalysisRequest = validate(validateAnalysisBody);
 const validateFeedbackRequest = validate(validateFeedbackBody);
+const validateRegister = validate(validateRegisterBody);
+const validateLogin = validate(validateLoginBody);
 
 module.exports = {
   validate,
   validateCreateTicket,
   validateAnalysisRequest,
-  validateFeedbackRequest
+  validateFeedbackRequest,
+  validateRegister,
+  validateLogin
 };

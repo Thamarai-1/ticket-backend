@@ -72,26 +72,65 @@ analystFeedbackSchema.index({ analysis_id: 1, target_id: 1 });
 const AnalystFeedbackModel =
   mongoose.models.AnalystFeedback || mongoose.model('AnalystFeedback', analystFeedbackSchema);
 
+const inMemoryFeedback = [];
+
 class FeedbackRepository {
+  isDbConnected() {
+    return mongoose.connection && mongoose.connection.readyState === 1;
+  }
+
   async create(data) {
-    const doc = new AnalystFeedbackModel(data);
-    return doc.save();
+    const raw = { ...data, created_at: data.created_at || new Date(), updated_at: new Date() };
+    inMemoryFeedback.push(raw);
+
+    if (this.isDbConnected()) {
+      try {
+        const doc = new AnalystFeedbackModel(raw);
+        return await doc.save();
+      } catch {
+        // fallback
+      }
+    }
+    return raw;
   }
 
   async findByAnalysisId(analysisId) {
-    return AnalystFeedbackModel.find({
-      analysis_id: { $regex: new RegExp(`^${analysisId.trim()}$`, 'i') }
-    })
-      .sort({ created_at: -1 })
-      .lean();
+    const cleanId = String(analysisId).trim();
+    if (this.isDbConnected()) {
+      try {
+        const docs = await AnalystFeedbackModel.find({
+          analysis_id: { $regex: new RegExp(`^${cleanId}$`, 'i') }
+        })
+          .sort({ created_at: -1 })
+          .lean();
+        if (docs && docs.length > 0) return docs;
+      } catch {
+        // fallback
+      }
+    }
+
+    return inMemoryFeedback.filter(
+      (f) => f.analysis_id && f.analysis_id.toLowerCase() === cleanId.toLowerCase()
+    );
   }
 
   async findAll(filter = {}, { skip = 0, limit = 20 } = {}) {
-    const [feedbacks, total] = await Promise.all([
-      AnalystFeedbackModel.find(filter).sort({ created_at: -1 }).skip(skip).limit(limit).lean(),
-      AnalystFeedbackModel.countDocuments(filter)
-    ]);
-    return { feedbacks, total };
+    if (this.isDbConnected()) {
+      try {
+        const [feedbacks, total] = await Promise.all([
+          AnalystFeedbackModel.find(filter).sort({ created_at: -1 }).skip(skip).limit(limit).lean(),
+          AnalystFeedbackModel.countDocuments(filter)
+        ]);
+        if (total > 0) return { feedbacks, total };
+      } catch {
+        // fallback
+      }
+    }
+
+    return {
+      feedbacks: inMemoryFeedback.slice(skip, skip + limit),
+      total: inMemoryFeedback.length
+    };
   }
 }
 

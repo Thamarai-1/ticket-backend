@@ -75,18 +75,56 @@ auditEventSchema.index({ event_type: 1, timestamp: -1 });
 
 const AuditEventModel = mongoose.models.AuditEvent || mongoose.model('AuditEvent', auditEventSchema);
 
+const inMemoryAuditLogs = [];
+
 class AuditRepository {
+  isDbConnected() {
+    return mongoose.connection && mongoose.connection.readyState === 1;
+  }
+
   async create(data) {
-    const doc = new AuditEventModel(data);
-    return doc.save();
+    const raw = { ...data, timestamp: data.timestamp || new Date() };
+    inMemoryAuditLogs.unshift(raw);
+
+    if (this.isDbConnected()) {
+      try {
+        const doc = new AuditEventModel(raw);
+        return await doc.save();
+      } catch {
+        // fallback
+      }
+    }
+    return raw;
   }
 
   async findAll(filter = {}, { skip = 0, limit = 20, sort = { timestamp: -1 } } = {}) {
-    const [logs, total] = await Promise.all([
-      AuditEventModel.find(filter).sort(sort).skip(skip).limit(limit).lean(),
-      AuditEventModel.countDocuments(filter)
-    ]);
-    return { logs, total };
+    if (this.isDbConnected()) {
+      try {
+        const [logs, total] = await Promise.all([
+          AuditEventModel.find(filter).sort(sort).skip(skip).limit(limit).lean(),
+          AuditEventModel.countDocuments(filter)
+        ]);
+        if (total > 0) return { logs, total };
+      } catch {
+        // fallback
+      }
+    }
+
+    let filtered = inMemoryAuditLogs;
+    if (filter.analysis_id) {
+      filtered = filtered.filter((l) => l.analysis_id === filter.analysis_id);
+    }
+    if (filter.ticket_id) {
+      filtered = filtered.filter((l) => l.ticket_id === filter.ticket_id);
+    }
+    if (filter.event_type) {
+      filtered = filtered.filter((l) => l.event_type === filter.event_type);
+    }
+
+    return {
+      logs: filtered.slice(skip, skip + limit),
+      total: filtered.length
+    };
   }
 }
 

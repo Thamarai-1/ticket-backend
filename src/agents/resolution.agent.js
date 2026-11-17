@@ -18,6 +18,12 @@ class ResolutionAgent {
     const startTime = Date.now();
 
     try {
+      // Extract grounded evidence from retrieved similar tickets before calling recommendation
+      let evidence = [];
+      if (state.similar_tickets && state.similar_tickets.length > 0) {
+        evidence = evidenceService.extractEvidenceFromTickets(state.similar_tickets);
+      }
+
       const recResult = await resolutionService.recommendResolution({
         ticket_id: state.ticket_id,
         title: state.title,
@@ -26,16 +32,12 @@ class ResolutionAgent {
         environment: state.environment,
         top_k: 3,
         generation_mode: state.generation_mode || 'deterministic',
-        user_data_access_level: state.user_data_access_level || 'internal'
+        user_data_access_level: state.user_data_access_level || 'internal',
+        evidence,
+        similar_tickets: state.similar_tickets || []
       });
 
       const latency = Date.now() - startTime;
-
-      // Extract grounded evidence from retrieved similar tickets if not already attached
-      let evidence = [];
-      if (state.similar_tickets && state.similar_tickets.length > 0) {
-        evidence = evidenceService.extractEvidenceFromTickets(state.similar_tickets);
-      }
 
       return {
         ...state,

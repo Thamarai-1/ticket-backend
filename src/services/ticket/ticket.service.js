@@ -8,7 +8,7 @@ const { auditRepository } = require('../../repositories/audit.repository');
 const ticketValidationService = require('./ticket-validation.service');
 const ticketNormalizationService = require('./ticket-normalization.service');
 const { parsePagination, formatPagination } = require('../../utils/pagination');
-const { NotFoundError } = require('../../utils/errors');
+const { NotFoundError, ForbiddenError } = require('../../utils/errors');
 
 class TicketService {
   async listTickets(queryParams = {}) {
@@ -51,11 +51,38 @@ class TicketService {
     };
   }
 
-  async getTicketById(ticketId) {
+  async getTicketById(ticketId, user = null) {
     const ticket = await ticketRepository.findByTicketId(ticketId);
     if (!ticket) {
       throw new NotFoundError(`Ticket with ID '${ticketId}' was not found`);
     }
+
+    if (user) {
+      const isRestrictedRole = user.role === 'user';
+      const isRestrictedTicket =
+        ticket.data_access_level === 'restricted' || ticket.data_access_level === 'confidential';
+
+      const clearanceRank = { public: 1, internal: 2, confidential: 3, restricted: 4 };
+      const userRank = user.role === 'admin' ? 4 : (clearanceRank[user.access_level] || 2);
+      const ticketRank = clearanceRank[ticket.data_access_level] || 2;
+
+      const isOwner =
+        ticket.created_by &&
+        (ticket.created_by === user.user_id || ticket.created_by === user.email);
+
+      if (isRestrictedRole && isRestrictedTicket && !isOwner) {
+        throw new ForbiddenError(
+          "Access denied: You do not have permission to access another user's protected ticket"
+        );
+      }
+
+      if (userRank < ticketRank && !isOwner) {
+        throw new ForbiddenError(
+          `Access denied: Ticket requires '${ticket.data_access_level}' clearance level`
+        );
+      }
+    }
+
     return ticket;
   }
 

@@ -153,32 +153,91 @@ analysisSchema.index({ ticket_id: 1, created_at: -1 });
 
 const AnalysisModel = mongoose.models.Analysis || mongoose.model('Analysis', analysisSchema);
 
+const inMemoryAnalyses = new Map();
+
 class ResolutionRepository {
+  isDbConnected() {
+    return mongoose.connection && mongoose.connection.readyState === 1;
+  }
+
   async saveAnalysis(data) {
-    const doc = new AnalysisModel(data);
-    return doc.save();
+    const raw = { ...data, created_at: data.created_at || new Date(), updated_at: new Date() };
+    inMemoryAnalyses.set(raw.analysis_id, raw);
+
+    if (this.isDbConnected()) {
+      try {
+        const doc = new AnalysisModel(raw);
+        return await doc.save();
+      } catch {
+        // fallback
+      }
+    }
+    return raw;
   }
 
   async findAnalysisById(analysisId) {
-    return AnalysisModel.findOne({
-      analysis_id: { $regex: new RegExp(`^${analysisId.trim()}$`, 'i') }
-    }).lean();
+    const cleanId = String(analysisId).trim();
+    if (this.isDbConnected()) {
+      try {
+        const doc = await AnalysisModel.findOne({
+          analysis_id: { $regex: new RegExp(`^${cleanId}$`, 'i') }
+        }).lean();
+        if (doc) return doc;
+      } catch {
+        // fallback
+      }
+    }
+
+    for (const [id, a] of inMemoryAnalyses.entries()) {
+      if (id.toLowerCase() === cleanId.toLowerCase()) {
+        return a;
+      }
+    }
+    return null;
   }
 
   async findByTicketId(ticketId) {
-    return AnalysisModel.find({
-      ticket_id: { $regex: new RegExp(`^${ticketId.trim()}$`, 'i') }
-    })
-      .sort({ created_at: -1 })
-      .lean();
+    const cleanId = String(ticketId).trim();
+    if (this.isDbConnected()) {
+      try {
+        const docs = await AnalysisModel.find({
+          ticket_id: { $regex: new RegExp(`^${cleanId}$`, 'i') }
+        })
+          .sort({ created_at: -1 })
+          .lean();
+        if (docs && docs.length > 0) return docs;
+      } catch {
+        // fallback
+      }
+    }
+
+    const matches = [];
+    for (const a of inMemoryAnalyses.values()) {
+      if (a.ticket_id && a.ticket_id.toLowerCase() === cleanId.toLowerCase()) {
+        matches.push(a);
+      }
+    }
+    return matches;
   }
 
   async listAnalyses(filter = {}, { skip = 0, limit = 10 } = {}) {
-    const [analyses, total] = await Promise.all([
-      AnalysisModel.find(filter).sort({ created_at: -1 }).skip(skip).limit(limit).lean(),
-      AnalysisModel.countDocuments(filter)
-    ]);
-    return { analyses, total };
+    if (this.isDbConnected()) {
+      try {
+        const [analyses, total] = await Promise.all([
+          AnalysisModel.find(filter).sort({ created_at: -1 }).skip(skip).limit(limit).lean(),
+          AnalysisModel.countDocuments(filter)
+        ]);
+        if (total > 0) return { analyses, total };
+      } catch {
+        // fallback
+      }
+    }
+
+    const list = Array.from(inMemoryAnalyses.values());
+    return {
+      analyses: list.slice(skip, skip + limit),
+      total: list.length
+    };
   }
 }
 

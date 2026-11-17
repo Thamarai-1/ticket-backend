@@ -55,7 +55,10 @@ class HybridSearchService {
       keywordSearchService.search(queryText, { top_k, category: filters?.category })
     ]);
 
-    const results = rerankingService.fuseRankings(vectorRes, keywordRes).slice(0, top_k);
+    const results = rerankingService.fuseRankings(vectorRes, keywordRes, 60, {
+      title,
+      description
+    }).slice(0, top_k);
 
     return {
       query_ticket_id: ticket_id || null,

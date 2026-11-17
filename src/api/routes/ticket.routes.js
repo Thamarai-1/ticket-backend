@@ -22,6 +22,7 @@ router.post('/', validateCreateTicket, ticketController.createTicket);
 
 // Individual ticket operations
 router.get('/:ticketId', ticketController.getTicketById);
+router.get('/:ticketId/chunks', ticketController.getTicketChunks);
 router.put('/:ticketId', ticketController.updateTicket);
 
 module.exports = router;

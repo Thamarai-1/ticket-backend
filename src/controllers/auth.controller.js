@@ -1,6 +1,6 @@
 /**
  * auth.controller.js
- * Controller handling user authentication, login, registration, and profile endpoints.
+ * Controller handling user authentication, login, registration, profile, and logout endpoints.
  */
 
 const authService = require('../services/auth/auth.service');
@@ -29,7 +29,16 @@ const register = async (req, res, next) => {
 const getMe = async (req, res, next) => {
   try {
     const user = await authService.getCurrentUser(req.userId);
-    return successResponse(res, user);
+    return successResponse(res, user, 200, 'User profile retrieved successfully');
+  } catch (err) {
+    next(err);
+  }
+};
+
+const logout = async (req, res, next) => {
+  try {
+    const result = await authService.logout(req.userId);
+    return successResponse(res, result, 200, 'Logout successful');
   } catch (err) {
     next(err);
   }
@@ -38,5 +47,6 @@ const getMe = async (req, res, next) => {
 module.exports = {
   login,
   register,
-  getMe
+  getMe,
+  logout
 };
