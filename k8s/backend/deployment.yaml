@@ -8,7 +8,7 @@ metadata:
     app.kubernetes.io/component: api
     app.kubernetes.io/part-of: ticket-assistant
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: ticket-backend
