@@ -1,0 +1,102 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: ticket-assitant
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns-egress
+  namespace: ticket-assitant
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: coredns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-backend
+  namespace: ticket-assitant
+spec:
+  podSelector:
+    matchLabels:
+      app: ticket-backend
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        # Allow Traefik ingress controller in kube-system (default for K3s / Traefik v1/v2)
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+        # Allow Traefik ingress controller if installed in 'traefik' namespace
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: traefik
+        # Allow Traefik ingress controller pods directly
+        - namespaceSelector: {}
+          podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values: ["traefik", "traefik-ingress-controller"]
+      ports:
+        - protocol: TCP
+          port: 5000
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-backend-egress
+  namespace: ticket-assitant
+spec:
+  podSelector:
+    matchLabels:
+      app: ticket-backend
+  policyTypes:
+    - Egress
+  egress:
+    # Allow outbound to MongoDB (port 27017)
+    - ports:
+        - protocol: TCP
+          port: 27017
+    # Allow outbound to ML Service (port 8000)
+    - ports:
+        - protocol: TCP
+          port: 8000
+    # Allow outbound to external HTTPS (port 443) for Qdrant Cloud (*.aws.cloud.qdrant.io), OpenRouter (openrouter.ai), Gemini, and OpenAI
+    - ports:
+        - protocol: TCP
+          port: 443
+    # Allow outbound to internal DNS (port 53)
+    - ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53

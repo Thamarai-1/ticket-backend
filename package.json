@@ -1,0 +1,45 @@
+{
+  "name": "it-ticket-backend",
+  "version": "2.0.0",
+  "description": "Intelligent IT Ticket Analysis and Resolution Assistant - Node.js Primary Backend",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "seed": "node src/database/seed/seed.js",
+    "test": "jest --runInBand --detectOpenHandles --forceExit",
+    "prisma:generate": "prisma generate --schema=src/database/prisma/schema.prisma",
+    "prisma:push": "prisma db push --schema=src/database/prisma/schema.prisma"
+  },
+  "keywords": [
+    "hcltech",
+    "hackathon",
+    "it-tickets",
+    "express",
+    "mongodb",
+    "mongoose",
+    "prisma",
+    "agents"
+  ],
+  "author": "HCLTech AI Engineer Hackathon Team",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "mongoose": "^8.3.1",
+    "morgan": "^1.10.0"
+  },
+  "devDependencies": {
+    "@prisma/client": "^5.13.0",
+    "jest": "^29.7.0",
+    "nodemon": "^3.1.0",
+    "prisma": "^5.13.0",
+    "supertest": "^6.3.4"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testTimeout": 15000,
+    "verbose": true
+  }
+}

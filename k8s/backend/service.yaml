@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ticket-backend
+  namespace: ticket-assitant
+  labels:
+    app: ticket-backend
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: ticket-assistant
+spec:
+  type: ClusterIP
+  selector:
+    app: ticket-backend
+  ports:
+    - name: http
+      port: 80
+      targetPort: 5000
+    - name: backend-port
+      port: 5000
+      targetPort: 5000

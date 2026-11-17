@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ticket-assitant
+  labels:
+    name: ticket-assitant
+    app.kubernetes.io/part-of: ticket-assistant
