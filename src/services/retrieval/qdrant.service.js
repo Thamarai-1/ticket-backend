@@ -45,20 +45,21 @@ class QdrantService {
   async healthCheck() {
     if (!this.isConfigured()) return false;
 
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
 
+    try {
       const res = await fetch(`${this.url}/collections`, {
         method: 'GET',
         headers: this.getHeaders(),
         signal: controller.signal
       });
 
-      clearTimeout(timeoutId);
       return res.ok;
     } catch {
       return false;
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 

@@ -6,5 +6,6 @@ namespace: ticket-assitant
 resources:
   - namespace.yaml
   - serviceaccount/
+  - mongodb/
   - backend/
   - networkpolicy/

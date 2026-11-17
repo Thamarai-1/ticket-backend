@@ -16,10 +16,10 @@ class EmbeddingService {
       return new Array(384).fill(0);
     }
 
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2500);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2500);
 
+    try {
       const response = await fetch(`${this.mlServiceUrl}/embed`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -27,14 +27,14 @@ class EmbeddingService {
         signal: controller.signal
       });
 
-      clearTimeout(timeoutId);
-
       if (response.ok) {
         const data = await response.json();
         return data.embedding;
       }
     } catch {
       logger.debug('Downstream embedding service offline, falling back to hashed sparse representation.');
+    } finally {
+      clearTimeout(timeoutId);
     }
 
     // Deterministic 384-dimensional hashed projection fallback

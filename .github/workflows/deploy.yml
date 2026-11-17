@@ -94,6 +94,7 @@ jobs:
     needs: build-and-push
     runs-on: ubuntu-latest
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    environment: Production
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -106,7 +107,12 @@ jobs:
       - name: Configure Kubeconfig
         run: |
           mkdir -p $HOME/.kube
-          echo "${{ secrets.KUBECONFIG }}" > $HOME/.kube/config
+          RAW_KUBECONFIG="${{ secrets.KUBE_CONFIG || secrets.KUBECONFIG }}"
+          if echo "$RAW_KUBECONFIG" | base64 -d 2>/dev/null | grep -q "apiVersion:"; then
+            echo "$RAW_KUBECONFIG" | base64 -d > $HOME/.kube/config
+          else
+            echo "$RAW_KUBECONFIG" > $HOME/.kube/config
+          fi
           chmod 600 $HOME/.kube/config
 
       - name: Verify Cluster Connection
@@ -125,6 +131,24 @@ jobs:
             --docker-username=${{ github.actor }} \
             --docker-password=${{ secrets.GITHUB_TOKEN }} \
             --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Create or Update Backend Secrets from .env.prod
+        run: |
+          if [ -f backend/.env.prod ]; then
+            echo "Applying secrets directly from backend/.env.prod..."
+            kubectl create secret generic ticket-backend-secrets \
+              --namespace=${{ env.NAMESPACE }} \
+              --from-env-file=backend/.env.prod \
+              --dry-run=client -o yaml | kubectl apply -f -
+          else
+            echo "backend/.env.prod not present; creating secret from GitHub environment secrets..."
+            kubectl create secret generic ticket-backend-secrets \
+              --namespace=${{ env.NAMESPACE }} \
+              --from-literal=QDRANT_API_KEY="${{ secrets.QDRANT_API_KEY }}" \
+              --from-literal=OPENROUTER_API_KEY="${{ secrets.OPENROUTER_API_KEY }}" \
+              --from-literal=JWT_SECRET="${{ secrets.JWT_SECRET || 'it-ticket-default-secret-key-change-in-prod' }}" \
+              --dry-run=client -o yaml | kubectl apply -f -
+          fi
 
       - name: Deploy Manifests via kubectl & Kustomize
         run: |

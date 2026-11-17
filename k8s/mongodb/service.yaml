@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb
+  namespace: ticket-assitant
+  labels:
+    app: mongodb
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: ticket-assistant
+spec:
+  type: ClusterIP
+  ports:
+    - name: mongodb
+      port: 27017
+      targetPort: 27017
+      protocol: TCP
+  selector:
+    app: mongodb
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb-headless
+  namespace: ticket-assitant
+  labels:
+    app: mongodb
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: ticket-assistant
+spec:
+  clusterIP: None
+  ports:
+    - name: mongodb
+      port: 27017
+      targetPort: 27017
+      protocol: TCP
+  selector:
+    app: mongodb

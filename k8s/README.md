@@ -23,6 +23,10 @@ backend/k8s/
 │   ├── hpa.yaml                  # Horizontal Pod Autoscaler (2 to 5 replicas)
 │   ├── pdb.yaml                  # Pod Disruption Budget (maxUnavailable: 1)
 │   └── kustomization.yaml
+├── mongodb/
+│   ├── statefulset.yaml          # MongoDB StatefulSet (v7.0, 10Gi PVC storage)
+│   ├── service.yaml              # ClusterIP (port 27017) and Headless services
+│   └── kustomization.yaml
 ├── serviceaccount/
 │   ├── backend-sa.yaml           # Dedicated non-root ServiceAccount
 │   └── kustomization.yaml
@@ -41,6 +45,9 @@ backend/k8s/
    - Outbound to ML Microservice on port `8000`
    - Outbound to HTTPS on port `443` (for Qdrant Cloud vector database, OpenRouter at `openrouter.ai`, Gemini, OpenAI)
    - Outbound to internal DNS on port `53`
+5. **MongoDB Network Isolation (`allow-ingress-to-mongodb` & `allow-mongodb-egress`)**:
+   - Strictly restricts incoming database access on port `27017` to `ticket-backend` pods only (all other pods in or outside the namespace are blocked).
+   - Permits internal DNS and inter-member communication for database health.
 
 ## Deployment via kubectl
 

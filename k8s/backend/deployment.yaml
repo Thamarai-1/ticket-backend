@@ -36,28 +36,9 @@ spec:
               value: "production"
             - name: CORS_ORIGIN
               value: "https://thama.dpdns.org,http://localhost:5173"
-            - name: MONGODB_URI
-              value: "mongodb://localhost:27017"
-            - name: MONGODB_DB_NAME
-              value: "it_ticket_db"
-            - name: ML_SERVICE_URL
-              value: "http://ml-service.ticket-assitant.svc.cluster.local:8000"
-            - name: ML_SERVICE_TIMEOUT_MS
-              value: "3000"
-            - name: OPENROUTER_MODEL
-              value: "openai/gpt-4o-mini"
-            - name: OPENROUTER_BASE_URL
-              value: "https://openrouter.ai/api/v1"
-            - name: AI_PROVIDER
-              value: "openrouter"
-            - name: QDRANT_URL
-              value: "https://f515a31d-7858-4f82-80f0-ac7bf4e2457b.eu-west-2-0.aws.cloud.qdrant.io"
-            - name: QDRANT_COLLECTION_NAME
-              value: "ticket_embeddings"
           envFrom:
             - secretRef:
                 name: ticket-backend-secrets
-                optional: true
           resources:
             requests:
               cpu: "100m"
