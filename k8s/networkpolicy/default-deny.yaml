@@ -50,23 +50,7 @@ spec:
   policyTypes:
     - Ingress
   ingress:
-    - from:
-        # Allow Traefik ingress controller in kube-system (default for K3s / Traefik v1/v2)
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-        # Allow Traefik ingress controller if installed in 'traefik' namespace
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: traefik
-        # Allow Traefik ingress controller pods directly
-        - namespaceSelector: {}
-          podSelector:
-            matchExpressions:
-              - key: app.kubernetes.io/name
-                operator: In
-                values: ["traefik", "traefik-ingress-controller"]
-      ports:
+    - ports:
         - protocol: TCP
           port: 5000
 ---

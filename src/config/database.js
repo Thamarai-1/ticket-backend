@@ -22,7 +22,7 @@ const getPrisma = () => {
   return prismaClient;
 };
 
-const connectDB = async (customUri = null) => {
+const connectDB = async (customUri = null, maxRetries = 10, retryDelayMs = 3000) => {
   const uri = customUri || env.MONGODB_URI;
   const dbName = env.MONGODB_DB_NAME;
 
@@ -34,13 +34,20 @@ const connectDB = async (customUri = null) => {
     family: 4
   };
 
-  try {
-    const conn = await mongoose.connect(uri, options);
-    logger.info(`Database connected: ${conn.connection.name} at ${conn.connection.host}`);
-    return conn;
-  } catch (error) {
-    logger.error(`Database connection error: ${error.message}`);
-    throw error;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      logger.info(`Connecting to database (attempt ${attempt}/${maxRetries})...`);
+      const conn = await mongoose.connect(uri, options);
+      logger.info(`Database connected: ${conn.connection.name} at ${conn.connection.host}`);
+      return conn;
+    } catch (error) {
+      logger.warn(`Database connection attempt ${attempt}/${maxRetries} failed: ${error.message}`);
+      if (attempt === maxRetries) {
+        logger.error(`Exhausted all ${maxRetries} database connection attempts.`);
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+    }
   }
 };
 

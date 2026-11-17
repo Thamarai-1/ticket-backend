@@ -13,7 +13,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}/ticket-backend
+  IMAGE_NAME: ${{ github.repository }}
   NAMESPACE: ticket-assitant
   APP_HOST: api.thama.dpdns.org
 
@@ -125,7 +125,7 @@ jobs:
             --docker-password=${{ secrets.GITHUB_TOKEN }} \
             --dry-run=client -o yaml | kubectl apply -f -
 
-      - name: Create or Update Backend Secrets from .env.prod
+      - name: Create or Update Backend Secrets
         run: |
           if [ -f .env.prod ]; then
             echo "Applying secrets directly from .env.prod..."
@@ -134,12 +134,29 @@ jobs:
               --from-env-file=.env.prod \
               --dry-run=client -o yaml | kubectl apply -f -
           else
-            echo ".env.prod not present; creating secret from GitHub environment secrets..."
+            echo "Creating secrets from production defaults and GitHub environment secrets..."
             kubectl create secret generic ticket-backend-secrets \
               --namespace=${{ env.NAMESPACE }} \
-              --from-literal=QDRANT_API_KEY="${{ secrets.QDRANT_API_KEY }}" \
+              --from-literal=PORT="5000" \
+              --from-literal=NODE_ENV="production" \
+              --from-literal=CORS_ORIGIN="https://thama.dpdns.org,http://localhost:5173" \
+              --from-literal=JWT_SECRET="${{ secrets.JWT_SECRET || 'super-secret-jwt-key-for-it-ticket-analysis' }}" \
+              --from-literal=JWT_EXPIRES_IN="24h" \
+              --from-literal=MONGODB_URI="${{ secrets.MONGODB_URI || 'mongodb://admin:MongoTicketSecurePassword2026!@mongodb.ticket-assitant.svc.cluster.local:27017/it_ticket_db?authSource=admin' }}" \
+              --from-literal=DATABASE_URL="${{ secrets.DATABASE_URL || 'mongodb://admin:MongoTicketSecurePassword2026!@mongodb.ticket-assitant.svc.cluster.local:27017/it_ticket_db?authSource=admin' }}" \
+              --from-literal=MONGODB_DB_NAME="it_ticket_db" \
+              --from-literal=MONGO_INITDB_ROOT_USERNAME="admin" \
+              --from-literal=MONGO_INITDB_ROOT_PASSWORD="${{ secrets.MONGO_INITDB_ROOT_PASSWORD || 'MongoTicketSecurePassword2026!' }}" \
+              --from-literal=MONGO_INITDB_DATABASE="it_ticket_db" \
+              --from-literal=ML_SERVICE_URL="http://ml-service.ticket-assitant.svc.cluster.local:8000" \
+              --from-literal=ML_SERVICE_TIMEOUT_MS="3000" \
               --from-literal=OPENROUTER_API_KEY="${{ secrets.OPENROUTER_API_KEY }}" \
-              --from-literal=JWT_SECRET="${{ secrets.JWT_SECRET || 'it-ticket-default-secret-key-change-in-prod' }}" \
+              --from-literal=OPENROUTER_MODEL="openai/gpt-4o-mini" \
+              --from-literal=OPENROUTER_BASE_URL="https://openrouter.ai/api/v1" \
+              --from-literal=AI_PROVIDER="openrouter" \
+              --from-literal=QDRANT_URL="https://f515a31d-7858-4f82-80f0-ac7bf4e2457b.eu-west-2-0.aws.cloud.qdrant.io" \
+              --from-literal=QDRANT_API_KEY="${{ secrets.QDRANT_API_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIiwic3ViamVjdCI6ImFwaS1rZXk6Zjc5N2Q0NTctMTQ5OC00YmE2LWEwMWYtMzA2YjRiZTVlY2JjIn0.VjfMjmFDf8BiO1F_SUYTP-WJK0K5GyHbzR2qd-_1eVw' }}" \
+              --from-literal=QDRANT_COLLECTION_NAME="ticket_embeddings" \
               --dry-run=client -o yaml | kubectl apply -f -
           fi
 
@@ -154,9 +171,25 @@ jobs:
           # Render kustomize and inject built image tag, then apply with kubectl
           kubectl kustomize k8s | sed "s|backend-image:latest|${IMAGE_LOWER}:${TAG_SHORT}|g" | kubectl apply -f -
 
-      - name: Verify Rollout Status
+      - name: Wait for MongoDB StatefulSet
+        run: |
+          kubectl rollout status statefulset/mongodb -n ${{ env.NAMESPACE }} --timeout=120s || true
+
+      - name: Verify Backend Rollout Status
         run: |
           kubectl rollout status deployment/ticket-backend -n ${{ env.NAMESPACE }} --timeout=180s
+
+      - name: Debug Diagnostics on Failure
+        if: failure()
+        run: |
+          echo "=== PODS IN NAMESPACE ==="
+          kubectl get pods -n ${{ env.NAMESPACE }} -o wide
+          echo "=== DESCRIBE BACKEND PODS ==="
+          kubectl describe pods -n ${{ env.NAMESPACE }} -l app=ticket-backend
+          echo "=== BACKEND LOGS ==="
+          kubectl logs -n ${{ env.NAMESPACE }} -l app=ticket-backend --tail=100 --all-containers=true || true
+          echo "=== MONGODB LOGS ==="
+          kubectl logs -n ${{ env.NAMESPACE }} -l app=mongodb --tail=50 || true
 
       - name: Verify Resources
         run: |
