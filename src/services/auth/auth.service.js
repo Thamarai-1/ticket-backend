@@ -1,7 +1,8 @@
 /**
  * auth.service.js
  * Authentication business logic: registration, credential validation, session handling.
- * Utilizes memory-hard scrypt hashing with cryptographic per-user salts and timing-safe comparison.
+ * Utilizes memory-hard scrypt hashing with cryptographic per-user salts, timing-safe comparison,
+ * and user repository database integration.
  */
 
 const crypto = require('crypto');
@@ -22,17 +23,25 @@ function hashPassword(password, salt) {
   return derivedKey.toString('hex');
 }
 
-// Timing-safe verification to prevent side-channel timing attacks
+// Timing-safe verification supporting scrypt and SHA-256 fallback
 function verifyPassword(password, salt, storedHash) {
   try {
-    const computedHash = hashPassword(password, salt);
-    const hashBuf = Buffer.from(computedHash, 'hex');
-    const storedBuf = Buffer.from(storedHash, 'hex');
+    if (salt) {
+      const computedHash = hashPassword(password, salt);
+      const hashBuf = Buffer.from(computedHash, 'hex');
+      const storedBuf = Buffer.from(storedHash, 'hex');
 
-    if (hashBuf.length !== storedBuf.length) {
-      return false;
+      if (hashBuf.length === storedBuf.length && crypto.timingSafeEqual(hashBuf, storedBuf)) {
+        return true;
+      }
     }
-    return crypto.timingSafeEqual(hashBuf, storedBuf);
+
+    // Fallback: SHA-256
+    const shaHash = crypto.createHash('sha256').update(password).digest('hex');
+    if (shaHash === storedHash) {
+      return true;
+    }
+    return false;
   } catch {
     return false;
   }

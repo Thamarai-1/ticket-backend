@@ -95,6 +95,31 @@ const runSeed = async () => {
     console.log(`   - Rejected Invalid: ${rejected.length}`);
   }
 
+  // Seed Default Administrator User (teamtitans@gmail.com)
+  try {
+    const User = require('../../models/User');
+    const crypto = require('crypto');
+    const adminEmail = 'teamtitans@gmail.com';
+    const passwordHash = crypto.createHash('sha256').update('TitansAdmin2026!').digest('hex');
+    await User.findOneAndUpdate(
+      { email: adminEmail },
+      {
+        $set: {
+          user_id: 'usr-admin-titans',
+          email: adminEmail,
+          name: 'Team Titans Administrator',
+          password_hash: passwordHash,
+          role: 'admin',
+          access_level: 'restricted'
+        }
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    console.log(`[Seed] Administrator account seeded into MongoDB: ${adminEmail}`);
+  } catch (userErr) {
+    console.warn(`[Seed Warning] Could not seed admin user: ${userErr.message}`);
+  }
+
   // Record Audit Event
   await auditRepository.create({
     event_id: `EVT-SEED-${Date.now()}`,

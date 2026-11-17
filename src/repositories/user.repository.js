@@ -72,6 +72,19 @@ function seedHash(password, salt) {
 }
 
 // Seed default accounts in memory store
+const titansSalt = crypto.randomBytes(16).toString('hex');
+inMemoryUsers.set('teamtitans@gmail.com', {
+  user_id: 'usr-admin-titans',
+  email: 'teamtitans@gmail.com',
+  name: 'Team Titans Administrator',
+  role: 'admin',
+  access_level: 'restricted',
+  salt: titansSalt,
+  password_hash: seedHash('TitansAdmin2026!', titansSalt),
+  created_at: new Date(),
+  updated_at: new Date()
+});
+
 const sanjaiSalt = crypto.randomBytes(16).toString('hex');
 inMemoryUsers.set('sanjaiexplores@gmail.com', {
   user_id: 'usr-sanjai-01',
