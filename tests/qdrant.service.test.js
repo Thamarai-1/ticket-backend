@@ -5,12 +5,23 @@
 
 const qdrantService = require('../src/services/retrieval/qdrant.service');
 const vectorSearchService = require('../src/services/retrieval/vector-search.service');
+const embeddingService = require('../src/services/retrieval/embedding.service');
 
 describe('Qdrant Vector Database Service', () => {
   const originalFetch = global.fetch;
+  const originalUrl = qdrantService.url;
+  const originalApiKey = qdrantService.apiKey;
 
   beforeEach(() => {
+    // Ensure unit tests have a valid mock endpoint regardless of whether .env is present
+    qdrantService.url = 'https://mock.qdrant.io';
+    qdrantService.apiKey = 'test-api-key';
     qdrantService.collectionVerified = false;
+  });
+
+  afterAll(() => {
+    qdrantService.url = originalUrl;
+    qdrantService.apiKey = originalApiKey;
   });
 
   afterEach(() => {
@@ -20,13 +31,11 @@ describe('Qdrant Vector Database Service', () => {
 
   describe('isConfigured and toUUID', () => {
     it('should correctly report configuration status', () => {
-      const origUrl = qdrantService.url;
       qdrantService.url = '';
       expect(qdrantService.isConfigured()).toBe(false);
 
       qdrantService.url = 'https://example.qdrant.io';
       expect(qdrantService.isConfigured()).toBe(true);
-      qdrantService.url = origUrl;
     });
 
     it('should generate valid deterministic UUIDs from arbitrary strings', () => {
@@ -143,6 +152,8 @@ describe('Qdrant Vector Database Service', () => {
 
   describe('vectorSearchService integration with Qdrant', () => {
     it('should query Qdrant when healthy and return matches', async () => {
+      jest.spyOn(embeddingService, 'generateEmbedding').mockResolvedValue(new Array(384).fill(0.05));
+      jest.spyOn(qdrantService, 'isConfigured').mockReturnValue(true);
       jest.spyOn(qdrantService, 'healthCheck').mockResolvedValue(true);
       jest.spyOn(qdrantService, 'querySimilar').mockResolvedValue([
         {
