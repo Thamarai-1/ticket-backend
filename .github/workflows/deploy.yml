@@ -127,7 +127,9 @@ jobs:
 
       - name: Create or Update Backend Secrets
         run: |
-          if [ -f .env.prod ]; then
+          if kubectl get secret ticket-backend-secrets -n ${{ env.NAMESPACE }} >/dev/null 2>&1; then
+            echo "Secret 'ticket-backend-secrets' already exists in namespace ${{ env.NAMESPACE }}; preserving server configuration."
+          elif [ -f .env.prod ]; then
             echo "Applying secrets directly from .env.prod..."
             kubectl create secret generic ticket-backend-secrets \
               --namespace=${{ env.NAMESPACE }} \
